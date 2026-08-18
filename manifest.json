@@ -5,7 +5,7 @@
   "version": "2026.08.17.1",
   "author": "John Cummings",
   "license": "MIT",
-  "description": "CPU, GPU, memory, disk, and temperatures in a native Omarchy bar widget.",
+  "description": "CPU, GPU, memory, disk, network, and temperatures in a native Omarchy bar widget.",
   "kinds": [
     "bar-widget"
   ],
@@ -31,6 +31,7 @@
       "showMemory": "On",
       "showGpu": "On",
       "showDisk": "Off",
+      "showNetwork": "On",
       "showTemp": "On",
       "compact": "Off",
       "barStyle": "Icons",
@@ -52,6 +53,7 @@
           "Memory",
           "GPU",
           "Disk",
+          "Network",
           "Temp"
         ],
         "defaultValue": "All",
@@ -96,6 +98,17 @@
           "Off"
         ],
         "defaultValue": "Off"
+      },
+      {
+        "key": "showNetwork",
+        "type": "enum",
+        "label": "Network",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On",
+        "description": "Show network upload/download rates on the bar."
       },
       {
         "key": "showTemp",
