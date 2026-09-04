@@ -528,6 +528,54 @@ def collect_disks() -> list[dict]:
     return disks
 
 
+SKIP_NET_INTERFACES = {"lo", "lo0", "veth", "docker", "br-", "virbr", "vboxnet", "tun", "tap"}
+
+
+def collect_network() -> dict:
+    text = read_text("/proc/net/dev")
+    if not text:
+        return {"rxBytes": 0, "txBytes": 0, "rxRate": 0, "txRate": 0}
+    rx_total = 0
+    tx_total = 0
+    for line in text.splitlines()[2:]:
+        if ":" not in line:
+            continue
+        iface, rest = line.split(":", 1)
+        iface = iface.strip()
+        if any(iface.startswith(p) or iface == p for p in SKIP_NET_INTERFACES):
+            continue
+        parts = rest.split()
+        if len(parts) < 10:
+            continue
+        try:
+            rx_total += int(parts[0])
+            tx_total += int(parts[8])
+        except (ValueError, IndexError):
+            continue
+
+    state_path = runtime_dir() / "hamsti-vitals-net.json"
+    prev = load_json(state_path)
+    rx_rate = 0
+    tx_rate = 0
+    now = time.time()
+    if prev:
+        prev_rx = int(prev.get("rxBytes") or 0)
+        prev_tx = int(prev.get("txBytes") or 0)
+        prev_ts = float(prev.get("ts") or 0)
+        dt = now - prev_ts if prev_ts else 0
+        if dt > 0.5:
+            rx_rate = max(0, (rx_total - prev_rx) / dt)
+            tx_rate = max(0, (tx_total - prev_tx) / dt)
+
+    write_json(state_path, {"ts": now, "rxBytes": rx_total, "txBytes": tx_total})
+    return {
+        "rxBytes": rx_total,
+        "txBytes": tx_total,
+        "rxRate": round(rx_rate),
+        "txRate": round(tx_rate),
+    }
+
+
 def merge_temps(cpu: dict, gpus: list[dict], hwmon_temps: list[dict]) -> list[dict]:
     out: list[dict] = []
     if cpu.get("tempC") is not None:
@@ -996,6 +1044,7 @@ def collect() -> dict:
 
     gpus = collect_gpus()
     disks = collect_disks()
+    network = collect_network()
     temps = merge_temps(cpu, gpus, collect_hwmon_temps(chips))
     hottest = pick_hottest(temps)
 
@@ -1006,6 +1055,7 @@ def collect() -> dict:
         "memory": memory,
         "gpus": gpus,
         "disks": disks,
+        "network": network,
         "temps": temps,
         "hottest": hottest,
     }

@@ -4,11 +4,11 @@
 [![Release](https://img.shields.io/github/v/release/thehamsti/omarchy-vitals)](https://github.com/thehamsti/omarchy-vitals/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A lightweight [Omarchy](https://omarchy.org/) / [Hyprland](https://hypr.land/) status-bar plugin for CPU, GPU, memory, disk, and temperatures. Native Quickshell widget — not a Waybar script.
+A lightweight [Omarchy](https://omarchy.org/) / [Hyprland](https://hypr.land/) status-bar plugin for CPU, GPU, memory, disk, network, and temperatures. Native Quickshell widget — not a Waybar script.
 
 ![Vitals panel](preview.png)
 
-- CPU, memory, GPU (NVIDIA via `nvidia-smi`, AMD via sysfs), disk, and hwmon temps
+- CPU, memory, GPU (NVIDIA via `nvidia-smi`, AMD via sysfs), disk, network, and hwmon temps
 - Click the bar for meters, top processes, and largest directories
 - Follows the active Omarchy theme (accent / muted / urgent)
 - Settings live in the panel accordion — poll rate, `CPU`/`MEM` text labels, units
@@ -53,7 +53,7 @@ omarchy plugin remove hamsti.vitals
 
 **Bar**
 
-`󰍛 12% 51°  󰘚 34%  󰢮 4% 45°`
+`󰍛 12% 51°  󰘚 34%  󰢮 4% 45°  󰈀 ↓1.2 MB/s  ↑256 KB/s`
 
 GPU hides itself when no supported GPU is found. Disk is off by default so the
 strip stays short; turn it on if you want capacity in the bar.
@@ -99,6 +99,7 @@ You can still set them from the CLI or by editing the bar entry in
   "showMemory": "On",
   "showGpu": "On",
   "showDisk": "Off",
+  "showNetwork": "On",
   "showTemp": "On",
   "compact": "Off",
   "barStyle": "Icons",
@@ -111,7 +112,7 @@ You can still set them from the CLI or by editing the bar entry in
 }
 ```
 
-`display` can be `All`, `CPU`, `Memory`, `GPU`, `Disk`, or `Temp`. The plugin
+`display` can be `All`, `CPU`, `Memory`, `GPU`, `Disk`, `Network`, or `Temp`. The plugin
 allows multiple instances, so you can split the strip:
 
 ```bash
@@ -131,6 +132,7 @@ of seconds; the panel calls `collect.py --extras` only while it is open.
 - `/proc/meminfo` for memory and swap
 - `nvidia-smi` for NVIDIA GPUs, `/sys/class/drm` for AMD
 - `/proc/self/mounts` + `statvfs` for real disks
+- `/proc/net/dev` for network upload/download rates
 - `/sys/class/hwmon` for temperatures
 - `--extras`: `/proc/*/stat` + `/proc/*/statm` for top processes,
   `nvidia-smi --query-compute-apps` for GPU VRAM, cached `du -s -x` for

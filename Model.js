@@ -31,6 +31,7 @@ function emptySnapshot() {
     memory: { percent: null, usedBytes: 0, totalBytes: 0, availableBytes: 0, swapUsedBytes: 0, swapTotalBytes: 0 },
     gpus: [],
     disks: [],
+    network: { rxBytes: 0, txBytes: 0, rxRate: 0, txRate: 0 },
     temps: [],
     hottest: null
   }
@@ -54,6 +55,7 @@ function parseSnapshot(raw) {
     if (!data.memory) data.memory = emptySnapshot().memory
     if (!Array.isArray(data.gpus)) data.gpus = []
     if (!Array.isArray(data.disks)) data.disks = []
+    if (!data.network) data.network = emptySnapshot().network
     if (!Array.isArray(data.temps)) data.temps = []
     return data
   } catch (e) {
@@ -121,6 +123,16 @@ function formatBytes(bytes, emptyText) {
   return String(Number(rounded)) + " " + unit
 }
 
+function formatRate(bytesPerSec, emptyText) {
+  if (bytesPerSec === undefined || bytesPerSec === null) return emptyText || "—"
+  var n = Number(bytesPerSec)
+  if (!isFinite(n) || n < 0) return emptyText || "—"
+  if (n < 1024) return Math.round(n) + " B/s"
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB/s"
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB/s"
+  return (n / (1024 * 1024 * 1024)).toFixed(2) + " GB/s"
+}
+
 function formatLoad(value) {
   if (value === undefined || value === null || !isFinite(Number(value))) return "—"
   return Number(value).toFixed(2)
@@ -170,6 +182,7 @@ function visibleMetrics(settings, snapshot) {
   var showMemory = isOn(settings && settings.showMemory, true)
   var showGpu = isOn(settings && settings.showGpu, true)
   var showDisk = isOn(settings && settings.showDisk, false)
+  var showNetwork = isOn(settings && settings.showNetwork, true)
   var showTemp = isOn(settings && settings.showTemp, true)
   var diskMount = (settings && settings.diskMount) || "/"
   var unit = (settings && settings.tempUnit) || "C"
@@ -179,6 +192,7 @@ function visibleMetrics(settings, snapshot) {
   var memory = snapshot && snapshot.memory ? snapshot.memory : {}
   var gpu = primaryGpu(snapshot)
   var disk = diskForMount(snapshot, diskMount)
+  var network = snapshot && snapshot.network ? snapshot.network : {}
   var hottest = snapshot && snapshot.hottest ? snapshot.hottest : null
   var items = []
 
@@ -188,6 +202,7 @@ function visibleMetrics(settings, snapshot) {
     if (kind === "memory") return "MEM"
     if (kind === "gpu") return "GPU"
     if (kind === "disk") return "DISK"
+    if (kind === "network") return "NET"
     if (kind === "temp") return "TEMP"
     return glyph
   }
@@ -205,11 +220,12 @@ function visibleMetrics(settings, snapshot) {
     })
   }
 
-  if (display === "CPU" || display === "Memory" || display === "GPU" || display === "Disk" || display === "Temp") {
+  if (display === "CPU" || display === "Memory" || display === "GPU" || display === "Disk" || display === "Network" || display === "Temp") {
     showCpu = display === "CPU"
     showMemory = display === "Memory"
     showGpu = display === "GPU"
     showDisk = display === "Disk"
+    showNetwork = display === "Network"
     showTemp = display === "Temp"
   }
 
@@ -237,6 +253,11 @@ function visibleMetrics(settings, snapshot) {
   if (showDisk) {
     push("disk", "󰋊", formatPercent(disk ? disk.percent : null), "", !!disk)
   }
+  if (showNetwork) {
+    var hasNet = network.rxRate !== undefined || network.txRate !== undefined
+    var netText = "↓" + formatRate(network.rxRate || 0) + "  ↑" + formatRate(network.txRate || 0)
+    push("network", "󰈀", netText, "", hasNet)
+  }
   if (showTemp && display === "Temp") {
     push("temp", "󰔏", formatTemp(hottest ? hottest.celsius : (cpu.tempC), unit), "", true)
   }
@@ -249,6 +270,7 @@ function tooltipLines(snapshot, settings) {
   var memory = snapshot && snapshot.memory ? snapshot.memory : {}
   var gpu = primaryGpu(snapshot)
   var disk = diskForMount(snapshot, (settings && settings.diskMount) || "/")
+  var network = snapshot && snapshot.network ? snapshot.network : {}
   var lines = []
   lines.push("CPU  " + formatPercent(cpu.percent) + "  " + formatTempFull(cpu.tempC, unit))
   lines.push("RAM  " + formatPercent(memory.percent) + "  " + formatBytes(memory.usedBytes) + " / " + formatBytes(memory.totalBytes))
@@ -258,6 +280,9 @@ function tooltipLines(snapshot, settings) {
       lines.push("VRAM " + formatBytes(gpu.memUsedBytes) + " / " + formatBytes(gpu.memTotalBytes))
   }
   if (disk) lines.push("Disk " + formatPercent(disk.percent) + "  " + disk.mount)
+  if (network.rxRate !== undefined || network.txRate !== undefined) {
+    lines.push("NET  ↓" + formatRate(network.rxRate || 0) + "  ↑" + formatRate(network.txRate || 0))
+  }
   return lines.join("\n")
 }
 
@@ -337,6 +362,7 @@ if (typeof module !== "undefined") {
     formatTemp: formatTemp,
     formatTempFull: formatTempFull,
     formatBytes: formatBytes,
+    formatRate: formatRate,
     formatLoad: formatLoad,
     metricWarned: metricWarned,
     anyWarned: anyWarned,

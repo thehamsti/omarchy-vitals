@@ -37,11 +37,13 @@ Panel {
   readonly property bool showMemory: Model.isOn(setting("showMemory", true), true)
   readonly property bool showGpu: Model.isOn(setting("showGpu", true), true)
   readonly property bool showDisk: Model.isOn(setting("showDisk", false), false)
+  readonly property bool showNetwork: Model.isOn(setting("showNetwork", true), true)
   readonly property bool showTemp: Model.isOn(setting("showTemp", true), true)
   readonly property var cpu: snapshot && snapshot.cpu ? snapshot.cpu : {}
   readonly property var memory: snapshot && snapshot.memory ? snapshot.memory : {}
   readonly property var gpu: Model.primaryGpu(snapshot)
   readonly property var disks: snapshot && snapshot.disks ? snapshot.disks : []
+  readonly property var network: snapshot && snapshot.network ? snapshot.network : {}
   readonly property var temps: snapshot && snapshot.temps ? snapshot.temps : []
   readonly property var cpuRows: Model.processCpuRows(extras)
   readonly property var memoryRows: Model.processMemoryRows(extras)
@@ -317,6 +319,17 @@ Panel {
           }
         }
 
+        MetricBlock {
+          visible: root.showNetwork
+          icon: "󰈀"
+          title: "Network"
+          value: "↓" + Model.formatRate(root.network.rxRate || 0) + "  ↑" + Model.formatRate(root.network.txRate || 0)
+          fraction: 0
+          warned: false
+          meta: "↓" + Model.formatBytes(root.network.rxBytes || 0) + " total  ·  ↑" + Model.formatBytes(root.network.txBytes || 0) + " total"
+          rows: []
+        }
+
         Column {
           visible: root.temps.length > 0
           width: parent.width
@@ -450,6 +463,13 @@ Panel {
                 onClicked: root.toggleFlag("showDisk", root.showDisk)
               }
               SettingPill {
+                label: "Network"
+                active: root.showNetwork
+                enabled: root.displayMode === "All"
+                tooltipText: "Show network upload/download rates on the bar"
+                onClicked: root.toggleFlag("showNetwork", root.showNetwork)
+              }
+              SettingPill {
                 label: "Temp"
                 active: root.showTemp
                 enabled: root.displayMode === "All"
@@ -462,7 +482,7 @@ Panel {
               title: "Mode"
               hint: "All, or a single metric widget"
               Repeater {
-                model: ["All", "CPU", "Memory", "GPU", "Disk", "Temp"]
+                model: ["All", "CPU", "Memory", "GPU", "Disk", "Network", "Temp"]
                 SettingPill {
                   required property string modelData
                   label: modelData
