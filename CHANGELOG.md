@@ -8,11 +8,13 @@ more than once on the same day.
 
 ## [Unreleased]
 
+
+## [2026.09.04] - 2026-09-04
+
 ### Changed
 
 - README documents requirements, removal, and a root `preview.png` for the marketplace
 - Release script no longer fetches remote git before running checks
-
 
 ## [2026.08.17.1] - 2026-08-17
 
@@ -44,6 +46,7 @@ more than once on the same day.
 
 - Fake CPU spikes from two monitors sampling `/proc/stat` a few milliseconds apart
 
-[Unreleased]: https://github.com/thehamsti/omarchy-vitals/compare/v2026.08.17.1...HEAD
+[Unreleased]: https://github.com/thehamsti/omarchy-vitals/compare/v2026.09.04...HEAD
+[2026.09.04]: https://github.com/thehamsti/omarchy-vitals/releases/tag/v2026.09.04
 [2026.08.17.1]: https://github.com/thehamsti/omarchy-vitals/releases/tag/v2026.08.17.1
 [2026.08.17]: https://github.com/thehamsti/omarchy-vitals/releases/tag/v2026.08.17

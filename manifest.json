@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "hamsti.vitals",
   "name": "Vitals",
-  "version": "2026.08.17.1",
+  "version": "2026.09.04",
   "author": "John Cummings",
   "license": "MIT",
   "description": "CPU, GPU, memory, disk, network, and temperatures in a native Omarchy bar widget.",
