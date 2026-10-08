@@ -68,6 +68,35 @@ function primaryGpu(snapshot) {
   return gpus.length > 0 ? gpus[0] : null
 }
 
+function aggregateGpu(snapshot) {
+  var gpus = snapshot && snapshot.gpus ? snapshot.gpus : []
+  if (gpus.length === 0) return null
+  if (gpus.length === 1) return gpus[0]
+  var sumPercent = 0, countPercent = 0
+  var sumUsed = 0, sumTotal = 0, maxTemp = -Infinity, sumPower = 0
+  for (var i = 0; i < gpus.length; i++) {
+    var g = gpus[i]
+    if (g.percent !== null && g.percent !== undefined && isFinite(Number(g.percent))) {
+      sumPercent += Number(g.percent)
+      countPercent++
+    }
+    sumUsed += Number(g.memUsedBytes) || 0
+    sumTotal += Number(g.memTotalBytes) || 0
+    if (g.tempC !== null && g.tempC !== undefined && isFinite(Number(g.tempC))) {
+      maxTemp = Math.max(maxTemp, Number(g.tempC))
+    }
+    sumPower += Number(g.powerW) || 0
+  }
+  return {
+    name: gpus.length + " GPUs",
+    percent: countPercent > 0 ? sumPercent / countPercent : null,
+    memUsedBytes: sumUsed,
+    memTotalBytes: sumTotal,
+    tempC: isFinite(maxTemp) ? maxTemp : null,
+    powerW: sumPower
+  }
+}
+
 function diskForMount(snapshot, mount) {
   var disks = snapshot && snapshot.disks ? snapshot.disks : []
   var wanted = String(mount || "/")
@@ -138,10 +167,18 @@ function formatLoad(value) {
   return Number(value).toFixed(2)
 }
 
+// Format GPU used VRAM as "X GB" (always GB, never MB)
+function formatGpuUsed(gpu) {
+  if (!gpu) return "—"
+  var u = Number(gpu.memUsedBytes)
+  if (!isFinite(u) || u < 0) return "—"
+  return (u / (1024 * 1024 * 1024)).toFixed(1) + " GB"
+}
+
 function metricWarned(kind, snapshot, warnPercent, warnTempC) {
   var cpu = snapshot && snapshot.cpu ? snapshot.cpu : {}
   var memory = snapshot && snapshot.memory ? snapshot.memory : {}
-  var gpu = primaryGpu(snapshot)
+  var gpu = aggregateGpu(snapshot)
   var disk = diskForMount(snapshot, "/")
   if (kind === "cpu") return Number(cpu.percent) >= warnPercent || Number(cpu.tempC) >= warnTempC
   if (kind === "memory") return Number(memory.percent) >= warnPercent
@@ -166,7 +203,7 @@ function statusPhrase(snapshot, warnPercent, warnTempC) {
   if (!snapshot || snapshot.ok === false && !snapshot.cpu) return "Waiting for sensors"
   var cpu = snapshot.cpu || {}
   var memory = snapshot.memory || {}
-  var gpu = primaryGpu(snapshot)
+  var gpu = aggregateGpu(snapshot)
   var hottest = snapshot.hottest ? Number(snapshot.hottest.celsius) : NaN
   if (isFinite(hottest) && hottest >= warnTempC) return "Running hot"
   if (Number(cpu.percent) >= warnPercent || Number(memory.percent) >= warnPercent || (gpu && Number(gpu.percent) >= warnPercent))
@@ -190,7 +227,7 @@ function visibleMetrics(settings, snapshot) {
   var useText = String((settings && settings.barStyle) || "Icons") === "Text"
   var cpu = snapshot && snapshot.cpu ? snapshot.cpu : {}
   var memory = snapshot && snapshot.memory ? snapshot.memory : {}
-  var gpu = primaryGpu(snapshot)
+  var gpu = aggregateGpu(snapshot)
   var disk = diskForMount(snapshot, diskMount)
   var network = snapshot && snapshot.network ? snapshot.network : {}
   var hottest = snapshot && snapshot.hottest ? snapshot.hottest : null
@@ -246,12 +283,14 @@ function visibleMetrics(settings, snapshot) {
       "gpu",
       "󰢮",
       formatPercent(gpu ? gpu.percent : null),
-      showTemp && display === "All" && !compact && gpu ? formatTemp(gpu.tempC, unit) : "",
+      (showTemp && display === "All" && !compact && gpu)
+        ? (formatTemp(gpu.tempC, unit) + "  " + formatGpuUsed(gpu))
+        : formatGpuUsed(gpu),
       !!gpu
     )
   }
   if (showDisk) {
-    push("disk", "󰋊", formatPercent(disk ? disk.percent : null), "", !!disk)
+    push("disk", "󰋊", formatPercent(disk ? disk.percent : null), compact ? "" : formatBytes(disk.totalBytes), !!disk)
   }
   if (showNetwork) {
     var hasNet = network.rxRate !== undefined || network.txRate !== undefined
@@ -268,18 +307,28 @@ function tooltipLines(snapshot, settings) {
   var unit = (settings && settings.tempUnit) || "C"
   var cpu = snapshot && snapshot.cpu ? snapshot.cpu : {}
   var memory = snapshot && snapshot.memory ? snapshot.memory : {}
-  var gpu = primaryGpu(snapshot)
+  var gpu = aggregateGpu(snapshot)
+  var gpus = snapshot && snapshot.gpus ? snapshot.gpus : []
   var disk = diskForMount(snapshot, (settings && settings.diskMount) || "/")
   var network = snapshot && snapshot.network ? snapshot.network : {}
   var lines = []
   lines.push("CPU  " + formatPercent(cpu.percent) + "  " + formatTempFull(cpu.tempC, unit))
   lines.push("RAM  " + formatPercent(memory.percent) + "  " + formatBytes(memory.usedBytes) + " / " + formatBytes(memory.totalBytes))
   if (gpu) {
-    lines.push("GPU  " + formatPercent(gpu.percent) + "  " + formatTempFull(gpu.tempC, unit))
+    var vram = ""
     if (gpu.memUsedBytes && gpu.memTotalBytes)
-      lines.push("VRAM " + formatBytes(gpu.memUsedBytes) + " / " + formatBytes(gpu.memTotalBytes))
+      vram = "  " + formatBytes(gpu.memUsedBytes) + " / " + formatBytes(gpu.memTotalBytes)
+    lines.push("GPU  " + formatPercent(gpu.percent) + "  " + formatTempFull(gpu.tempC, unit) + vram)
+    if (gpus.length > 1) {
+      for (var gi = 0; gi < gpus.length; gi++) {
+        var g = gpus[gi]
+        var gName = String(g.name || "GPU" + gi).replace(/^NVIDIA GeForce /, "")
+        var gVram = formatBytes(g.memUsedBytes) + " / " + formatBytes(g.memTotalBytes)
+        lines.push("  GPU" + gi + "  " + gName + "  " + formatPercent(g.percent) + "  " + formatTempFull(g.tempC, unit) + "  " + gVram)
+      }
+    }
   }
-  if (disk) lines.push("Disk " + formatPercent(disk.percent) + "  " + disk.mount)
+  if (disk) lines.push("Disk " + formatPercent(disk.percent) + "  " + disk.mount + "  " + formatBytes(disk.totalBytes))
   if (network.rxRate !== undefined || network.txRate !== undefined) {
     lines.push("NET  ↓" + formatRate(network.rxRate || 0) + "  ↑" + formatRate(network.txRate || 0))
   }
@@ -356,6 +405,7 @@ if (typeof module !== "undefined") {
     processGpuRows: processGpuRows,
     directoryRows: directoryRows,
     primaryGpu: primaryGpu,
+    aggregateGpu: aggregateGpu,
     diskForMount: diskForMount,
     formatPercent: formatPercent,
     formatProcessPercent: formatProcessPercent,
@@ -364,6 +414,7 @@ if (typeof module !== "undefined") {
     formatBytes: formatBytes,
     formatRate: formatRate,
     formatLoad: formatLoad,
+    formatGpuUsed: formatGpuUsed,
     metricWarned: metricWarned,
     anyWarned: anyWarned,
     statusPhrase: statusPhrase,

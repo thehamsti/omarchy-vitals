@@ -54,4 +54,58 @@ const extras = M.parseExtras(JSON.stringify({
 assert.strictEqual(M.processCpuRows(extras)[0].value, "1.4%")
 assert.strictEqual(M.directoryRows(extras, "/")[0].name, "home")
 
+// --- aggregateGpu tests ---
+
+// Empty gpus
+assert.strictEqual(M.aggregateGpu({ gpus: [] }), null)
+
+// Single GPU returns that GPU
+const singleSnap = M.parseSnapshot(JSON.stringify({
+  ok: true, cpu: { percent: 10 }, memory: { percent: 30 },
+  gpus: [{ name: "NVIDIA GeForce RTX 5090", percent: 42, tempC: 55, memUsedBytes: 2e9, memTotalBytes: 10e9, powerW: 150 }],
+  disks: [], network: { rxBytes: 0, txBytes: 0, rxRate: 0, txRate: 0 }, temps: [], hottest: null
+}))
+const singleAgg = M.aggregateGpu(singleSnap)
+assert.strictEqual(singleAgg.percent, 42)
+assert.strictEqual(singleAgg.tempC, 55)
+assert.strictEqual(singleAgg.memUsedBytes, 2e9)
+
+// Dual GPU snapshot
+const dualSnap = M.parseSnapshot(JSON.stringify({
+  ok: true,
+  cpu: { percent: 10, tempC: 50, cores: 24 },
+  memory: { percent: 30, usedBytes: 1e9, totalBytes: 64e9 },
+  gpus: [
+    { name: "NVIDIA GeForce RTX 3080", percent: 40, tempC: 60, memUsedBytes: 4e9, memTotalBytes: 10e9, powerW: 200 },
+    { name: "NVIDIA GeForce RTX 5070 Ti", percent: 80, tempC: 72, memUsedBytes: 8e9, memTotalBytes: 16e9, powerW: 300 }
+  ],
+  disks: [{ mount: "/", percent: 20, usedBytes: 1, totalBytes: 2 }],
+  network: { rxBytes: 0, txBytes: 0, rxRate: 0, txRate: 0 },
+  temps: [], hottest: null
+}))
+
+const dualAgg = M.aggregateGpu(dualSnap)
+assert.strictEqual(dualAgg.name, "2 GPUs")
+assert.strictEqual(dualAgg.percent, 60)         // mean of 40 and 80
+assert.strictEqual(dualAgg.memUsedBytes, 12e9)   // sum
+assert.strictEqual(dualAgg.memTotalBytes, 26e9)  // sum
+assert.strictEqual(dualAgg.tempC, 72)            // max
+assert.strictEqual(dualAgg.powerW, 500)          // sum
+
+// visibleMetrics with dual snapshot shows aggregate GPU percent (60%)
+const dualMetrics = M.visibleMetrics({ display: "All", showGpu: "On", barStyle: "Icons" }, dualSnap)
+const gpuPill = dualMetrics.find(function(m) { return m.kind === "gpu" })
+assert.ok(gpuPill, "GPU pill should exist")
+assert.ok(gpuPill.value.indexOf("60%") >= 0, "GPU pill should show 60% aggregate: " + gpuPill.value)
+
+// tooltipLines with dual snapshot contains per-GPU lines
+const dualTooltip = M.tooltipLines(dualSnap, {})
+assert.ok(dualTooltip.indexOf("RTX 3080") >= 0, "Tooltip should contain RTX 3080")
+assert.ok(dualTooltip.indexOf("RTX 5070 Ti") >= 0, "Tooltip should contain RTX 5070 Ti")
+assert.ok(dualTooltip.indexOf("60%") >= 0, "Tooltip should show aggregate 60%")
+
+// metricWarned with aggregate values
+assert.strictEqual(M.metricWarned("gpu", dualSnap, 90, 85), false, "60% < 90% and 72 < 85")
+assert.strictEqual(M.metricWarned("gpu", dualSnap, 50, 85), true, "60% >= 50%")
+
 console.log("model ok")

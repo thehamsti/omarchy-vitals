@@ -41,7 +41,7 @@ Panel {
   readonly property bool showTemp: Model.isOn(setting("showTemp", true), true)
   readonly property var cpu: snapshot && snapshot.cpu ? snapshot.cpu : {}
   readonly property var memory: snapshot && snapshot.memory ? snapshot.memory : {}
-  readonly property var gpu: Model.primaryGpu(snapshot)
+  readonly property var gpu: Model.aggregateGpu(snapshot)
   readonly property var disks: snapshot && snapshot.disks ? snapshot.disks : []
   readonly property var network: snapshot && snapshot.network ? snapshot.network : {}
   readonly property var temps: snapshot && snapshot.temps ? snapshot.temps : []
@@ -286,7 +286,7 @@ Panel {
           visible: root.gpu !== null
           icon: "󰢮"
           title: root.gpu && root.gpu.name ? String(root.gpu.name).replace(/^NVIDIA GeForce /, "") : "GPU"
-          value: Model.formatPercent(root.gpu ? root.gpu.percent : null)
+          value: Model.formatPercent(root.gpu ? root.gpu.percent : null) + "  " + Model.formatGpuUsed(root.gpu)
           fraction: root.gpu ? Number(root.gpu.percent) / 100 : 0
           warned: Model.metricWarned("gpu", root.snapshot, root.warnPercent, root.warnTempC)
           meta: {
@@ -300,7 +300,19 @@ Panel {
               parts.push(Math.round(Number(root.gpu.powerW)) + " W")
             return parts.join("  ·  ")
           }
-          rows: root.gpuRows
+          rows: {
+            if (root.snapshot && root.snapshot.gpus && root.snapshot.gpus.length > 1) {
+              var gpuDetailRows = []
+              for (var i = 0; i < root.snapshot.gpus.length; i++) {
+                var g = root.snapshot.gpus[i]
+                var gName = String(g.name || "GPU" + i).replace(/^NVIDIA GeForce /, "")
+                var gValue = Model.formatPercent(g.percent) + "  " + Model.formatTempFull(g.tempC, root.tempUnit) + "  " + Model.formatGpuUsed(g)
+                gpuDetailRows.push({ name: gName, value: gValue })
+              }
+              return gpuDetailRows.concat(root.gpuRows)
+            }
+            return root.gpuRows
+          }
         }
 
         Repeater {
