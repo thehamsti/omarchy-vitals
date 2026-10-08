@@ -198,5 +198,8 @@
         "defaultValue": "Panel"
       }
     ]
+  },
+  "settings": {
+    "compact": "On"
   }
 }

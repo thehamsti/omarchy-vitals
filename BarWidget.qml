@@ -20,6 +20,7 @@ BarWidget {
   readonly property var verticalLines: Model.verticalLines(root.metrics)
   readonly property bool alarming: Model.anyWarned(root.snapshot, root.warnPercent, root.warnTempC)
   readonly property string collector: Model.fileUrlToPath(Qt.resolvedUrl("collect.py"))
+  readonly property string barTooltip: Model.tooltipLines(root.snapshot, root.settings)
 
   function injectPanel() {
     var target = panelLoader.item
@@ -137,7 +138,7 @@ BarWidget {
     text: root.vertical ? "" : ""
     labelVisible: false
     hasVisualContent: root.metrics.length > 0
-    tooltipText: ""
+    tooltipText: root.barTooltip
     horizontalMargin: 8.75
     verticalPadding: 8.75
     fixedWidth: root.vertical ? -1 : Math.max(12, metricsRow.implicitWidth + scaledHorizontalMargin * 2)
